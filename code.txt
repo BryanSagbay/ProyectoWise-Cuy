@@ -1,0 +1,76 @@
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Image
+from std_msgs.msg import String
+from capture_service.msg import CaptureResult
+from datetime import datetime
+import cv2
+from cv_bridge import CvBridge
+
+class ImageCaptureService(Node):
+    def __init__(self):
+        super().__init__('image_capture_service')
+        self.get_logger().info("Image Capture Service Node started")
+
+        # Suscribirse al topic para detectar si hay un animal en la báscula
+        self.subscription = self.create_subscription(
+            String,
+            '/animal_on_scale',
+            self.on_animal_detected,
+            10
+        )
+
+        # Publicador del mensaje CaptureResult
+        self.publisher = self.create_publisher(CaptureResult, '/captured_image', 10)
+
+        # Herramienta para convertir imágenes OpenCV a ROS
+        self.bridge = CvBridge()
+
+        # Simulación: Crear un objeto de cámara (usar ID de cámara real en un entorno real)
+        self.camera = cv2.VideoCapture(0)  # 0 para la cámara principal
+
+        if not self.camera.isOpened():
+            self.get_logger().error("Failed to access camera. Ensure it is connected and try again.")
+
+    def on_animal_detected(self, msg):
+        self.get_logger().info(f"Animal detected: {msg.data}")
+        self.capture_image()
+
+    def capture_image(self):
+        # Leer imagen de la cámara
+        ret, frame = self.camera.read()
+        if not ret:
+            self.get_logger().error("Failed to capture image from camera.")
+            return
+
+        # Convertir imagen OpenCV a sensor_msgs/Image
+        ros_image = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
+
+        # Crear mensaje CaptureResult
+        capture_result = CaptureResult()
+        capture_result.image = ros_image
+        capture_result.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Publicar el mensaje
+        self.publisher.publish(capture_result)
+        self.get_logger().info(f"Published image at {capture_result.timestamp}")
+
+    def destroy_node(self):
+        # Liberar la cámara al finalizar
+        if self.camera.isOpened():
+            self.camera.release()
+        super().destroy_node()
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = ImageCaptureService()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        node.get_logger().info("Image Capture Service shutting down.")
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
