@@ -9,44 +9,54 @@ import datetime
 class ObjectDetectorNode(Node):
     def __init__(self):
         super().__init__('object_detector')
+        
+        # Subscríbete al topic de la cámara
         self.subscription = self.create_subscription(
             Image,
-            '/camera/image_raw',  # Cambia esto si el topic de la cámara es diferente
+            '/camera/image_raw',  # Asegúrate de que este es el topic correcto de tu cámara
             self.image_callback,
             10)
+        
         self.bridge = CvBridge()
-        self.output_dir = '/tmp/object_images'  # Cambia a la ruta deseada
+        self.output_dir = '/tmp/object_images'  # Directorio donde se guardarán las imágenes
         os.makedirs(self.output_dir, exist_ok=True)
+        
         self.get_logger().info('Object Detector Node initialized!')
 
     def image_callback(self, msg):
-        # Convertir imagen ROS a OpenCV
+        # Convertir la imagen ROS a formato OpenCV
         cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
 
-        # Detección de objetos (esto es un ejemplo básico usando detección de bordes)
+        # Procesar la imagen para detectar objetos
         gray_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
         edges = cv2.Canny(gray_image, 50, 150)
 
-        # Si detecta bordes significativos, guarda la imagen
-        if cv2.countNonZero(edges) > 1000:  # Threshold para decidir si hay un objeto
+        # Si detectamos bordes significativos, guardamos la imagen
+        if cv2.countNonZero(edges) > 1000:  # Cambia el umbral según tus necesidades
             timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = os.path.join(self.output_dir, f'object_{timestamp}.png')
             cv2.imwrite(filename, cv_image)
             self.get_logger().info(f'Object detected! Image saved to {filename}')
 
-        # Mostrar imagen en ventana para debug
-        cv2.imshow('Camera', cv_image)
-        cv2.imshow('Edges', edges)
+        # Mostrar la imagen original en una ventana
+        cv2.imshow('Live Camera Feed', cv_image)
+
+        # Mostrar la imagen procesada (bordes) en otra ventana
+        cv2.imshow('Processed (Edges)', edges)
+
+        # Refrescar las ventanas (necesario para que OpenCV funcione)
         cv2.waitKey(1)
 
 def main(args=None):
     rclpy.init(args=args)
     node = ObjectDetectorNode()
+    
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
     finally:
+        # Cerrar todo al terminar
         node.destroy_node()
         rclpy.shutdown()
         cv2.destroyAllWindows()
