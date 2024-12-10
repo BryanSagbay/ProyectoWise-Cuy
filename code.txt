@@ -19,6 +19,9 @@ class CameraPublisher(Node):
             self.get_logger().error('No se puede acceder a la cámara')
             raise RuntimeError('No se puede acceder a la cámara')
 
+        # Crear la ventana una vez
+        cv2.namedWindow('Vista de la cámara', cv2.WINDOW_NORMAL)
+
         self.get_logger().info('Nodo de cámara iniciado. Publicando frames en /camera_frames')
 
     def timer_callback(self):
@@ -27,7 +30,7 @@ class CameraPublisher(Node):
             self.get_logger().warn('No se pudo capturar el frame')
             return
 
-        # Mostrar el frame en una ventana de OpenCV
+        # Mostrar el frame en la ventana existente
         cv2.imshow('Vista de la cámara', frame)
 
         # Convertir frame de OpenCV a mensaje ROS2
@@ -41,9 +44,9 @@ class CameraPublisher(Node):
             rclpy.shutdown()
 
     def destroy_node(self):
-        # Liberar la cámara al cerrar el nodo
+        # Liberar la cámara y cerrar la ventana al destruir el nodo
         self.cap.release()
-        cv2.destroyAllWindows()
+        cv2.destroyWindow('Vista de la cámara')
         super().destroy_node()
 
 def main(args=None):
@@ -60,10 +63,3 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
-
-
-./capture_service.py
-  File "/home/cuywise/ros2_ws/src/cuywise_controller/cuywise_controller/./capture_service.py", line 64
-    rclpy.shutdown()
-IndentationError: unexpected indent
-
