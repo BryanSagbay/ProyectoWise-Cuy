@@ -1,68 +1,47 @@
-import cv2
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
+import cv2
 
-class CameraPublisher(Node):
+
+class CameraNode(Node):
     def __init__(self):
-        super().__init__('camera_publisher')
-
-        # Crear un publicador para el tópico "camera_frames"
-        self.publisher_ = self.create_publisher(Image, 'camera_frames', 10)
-        self.timer = self.create_timer(0.1, self.timer_callback)  # Publicar a 10 FPS
-        self.bridge = CvBridge()
-
-        # Abrir la cámara
+        super().__init__('camera_node')
+        self.publisher = self.create_publisher(Image, 'camera_frames', 10)
+        self.br = CvBridge()
+        self.timer = self.create_timer(0.1, self.publish_frame)  # Publica a 10 FPS
         self.cap = cv2.VideoCapture(0)
+
         if not self.cap.isOpened():
             self.get_logger().error('No se puede acceder a la cámara')
-            raise RuntimeError('No se puede acceder a la cámara')
-
-        # Crear la ventana una vez
-        cv2.namedWindow('Vista de la cámara', cv2.WINDOW_NORMAL)
-
-        self.get_logger().info('Nodo de cámara iniciado. Publicando frames en /camera_frames')
-
-    def timer_callback(self):
-        ret, frame = self.cap.read()
-        if not ret:
-            self.get_logger().warn('No se pudo capturar el frame')
-            return
-
-        # Mostrar el frame en la ventana existente
-        cv2.imshow('Vista de la cámara', frame)
-
-        # Convertir frame de OpenCV a mensaje ROS2
-        msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
-        self.publisher_.publish(msg)
-        self.get_logger().info('Publicando frame...')
-
-        # Salir si se presiona 'q'
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            self.get_logger().info('Cerrando nodo de cámara...')
+            self.cap.release()
             rclpy.shutdown()
 
-    def destroy_node(self):
-        # Liberar la cámara y cerrar la ventana al destruir el nodo
+    def publish_frame(self):
+        ret, frame = self.cap.read()
+        if ret:
+            # Convierte el frame a un mensaje de ROS y publícalo
+            msg = self.br.cv2_to_imgmsg(frame, encoding='bgr8')
+            self.publisher.publish(msg)
+        else:
+            self.get_logger().warning('No se pudo capturar el frame')
+
+    def __del__(self):
         self.cap.release()
-        cv2.destroyWindow('Vista de la cámara')
-        super().destroy_node()
+
 
 def main(args=None):
     rclpy.init(args=args)
-    node = CameraPublisher()
-
+    node = CameraNode()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
     finally:
-        node.destroy_node()
+        del node
         rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()
-
-sudo apt update
-sudo apt install -y libgtk2.0-dev libgtk-3-dev libcanberra-gtk* libx11-dev
