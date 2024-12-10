@@ -1,47 +1,42 @@
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
 import cv2
+import os
+from datetime import datetime
 
-
-class CameraNode(Node):
+class WebcamNode(Node):
     def __init__(self):
-        super().__init__('camera_node')
-        self.publisher = self.create_publisher(Image, 'camera_frames', 10)
-        self.br = CvBridge()
-        self.timer = self.create_timer(0.1, self.publish_frame)  # Publica a 10 FPS
-        self.cap = cv2.VideoCapture(0)
+        super().__init__('webcam_node')
+        self.get_logger().info("Webcam node started")
+        self.cap = cv2.VideoCapture(0)  # Asegúrate de que el índice coincide con tu cámara
+        self.timer = self.create_timer(0.1, self.show_camera)
+        self.image_save_dir = os.path.join(os.getcwd(), 'images')
+        os.makedirs(self.image_save_dir, exist_ok=True)
 
-        if not self.cap.isOpened():
-            self.get_logger().error('No se puede acceder a la cámara')
-            self.cap.release()
-            rclpy.shutdown()
-
-    def publish_frame(self):
+    def show_camera(self):
         ret, frame = self.cap.read()
         if ret:
-            # Convierte el frame a un mensaje de ROS y publícalo
-            msg = self.br.cv2_to_imgmsg(frame, encoding='bgr8')
-            self.publisher.publish(msg)
-        else:
-            self.get_logger().warning('No se pudo capturar el frame')
+            cv2.imshow('Webcam', frame)
 
-    def __del__(self):
-        self.cap.release()
-
+            # Presiona 's' para guardar una imagen
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('s'):
+                filename = datetime.now().strftime('%Y%m%d_%H%M%S') + '.jpg'
+                filepath = os.path.join(self.image_save_dir, filename)
+                cv2.imwrite(filepath, frame)
+                self.get_logger().info(f"Image saved: {filepath}")
+            elif key == ord('q'):
+                self.get_logger().info("Exiting webcam node")
+                self.cap.release()
+                cv2.destroyAllWindows()
+                rclpy.shutdown()
 
 def main(args=None):
     rclpy.init(args=args)
-    node = CameraNode()
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        del node
-        rclpy.shutdown()
-
+    node = WebcamNode()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
