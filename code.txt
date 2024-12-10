@@ -27,14 +27,23 @@ class CameraPublisher(Node):
             self.get_logger().warn('No se pudo capturar el frame')
             return
 
+        # Mostrar el frame en una ventana de OpenCV
+        cv2.imshow('Vista de la cámara', frame)
+
         # Convertir frame de OpenCV a mensaje ROS2
         msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
         self.publisher_.publish(msg)
         self.get_logger().info('Publicando frame...')
 
+        # Salir si se presiona 'q'
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            self.get_logger().info('Cerrando nodo de cámara...')
+            rclpy.shutdown()
+
     def destroy_node(self):
         # Liberar la cámara al cerrar el nodo
         self.cap.release()
+        cv2.destroyAllWindows()
         super().destroy_node()
 
 def main(args=None):
