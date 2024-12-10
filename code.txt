@@ -37,3 +37,31 @@ def main(args=None):  # Cambia aquí para que args sea opcional
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
+
+
+
+from setuptools import setup
+
+package_name = 'webcam_pkg'
+
+setup(
+    name=package_name,
+    version='0.1.0',
+    packages=[package_name],
+    data_files=[
+        ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
+        ('share/' + package_name, ['package.xml']),
+    ],
+    install_requires=['setuptools', 'opencv-python'],
+    zip_safe=True,
+    maintainer='tu_nombre',
+    maintainer_email='tu_email@example.com',
+    description='Paquete de ROS2 para manejar webcam y guardar imágenes.',
+    license='Apache License 2.0',
+    tests_require=['pytest'],
+    entry_points={
+        'console_scripts': [
+            'webcam_node = webcam_pkg.webcam_node:main',  # Asegúrate de que este mapeo sea correcto
+        ],
+    },
+)
