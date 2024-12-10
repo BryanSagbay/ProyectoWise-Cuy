@@ -60,3 +60,10 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+
+
+./capture_service.py
+  File "/home/cuywise/ros2_ws/src/cuywise_controller/cuywise_controller/./capture_service.py", line 64
+    rclpy.shutdown()
+IndentationError: unexpected indent
+
