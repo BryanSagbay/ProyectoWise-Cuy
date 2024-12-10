@@ -1,65 +1,53 @@
+import cv2
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
-import cv2
-import os
-import datetime
 
-class ObjectDetectorNode(Node):
+class CameraPublisher(Node):
     def __init__(self):
-        super().__init__('object_detector')
-        
-        # Subscríbete al topic de la cámara
-        self.subscription = self.create_subscription(
-            Image,
-            '/camera/image_raw',  # Asegúrate de que este es el topic correcto de tu cámara
-            self.image_callback,
-            10)
-        
+        super().__init__('camera_publisher')
+
+        # Crear un publicador para el tópico "camera_frames"
+        self.publisher_ = self.create_publisher(Image, 'camera_frames', 10)
+        self.timer = self.create_timer(0.1, self.timer_callback)  # Publicar a 10 FPS
         self.bridge = CvBridge()
-        self.output_dir = '/tmp/object_images'  # Directorio donde se guardarán las imágenes
-        os.makedirs(self.output_dir, exist_ok=True)
-        
-        self.get_logger().info('Object Detector Node initialized!')
 
-    def image_callback(self, msg):
-        # Convertir la imagen ROS a formato OpenCV
-        cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        # Abrir la cámara
+        self.cap = cv2.VideoCapture(0)
+        if not self.cap.isOpened():
+            self.get_logger().error('No se puede acceder a la cámara')
+            raise RuntimeError('No se puede acceder a la cámara')
 
-        # Procesar la imagen para detectar objetos
-        gray_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
-        edges = cv2.Canny(gray_image, 50, 150)
+        self.get_logger().info('Nodo de cámara iniciado. Publicando frames en /camera_frames')
 
-        # Si detectamos bordes significativos, guardamos la imagen
-        if cv2.countNonZero(edges) > 1000:  # Cambia el umbral según tus necesidades
-            timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = os.path.join(self.output_dir, f'object_{timestamp}.png')
-            cv2.imwrite(filename, cv_image)
-            self.get_logger().info(f'Object detected! Image saved to {filename}')
+    def timer_callback(self):
+        ret, frame = self.cap.read()
+        if not ret:
+            self.get_logger().warn('No se pudo capturar el frame')
+            return
 
-        # Mostrar la imagen original en una ventana
-        cv2.imshow('Live Camera Feed', cv_image)
+        # Convertir frame de OpenCV a mensaje ROS2
+        msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
+        self.publisher_.publish(msg)
+        self.get_logger().info('Publicando frame...')
 
-        # Mostrar la imagen procesada (bordes) en otra ventana
-        cv2.imshow('Processed (Edges)', edges)
-
-        # Refrescar las ventanas (necesario para que OpenCV funcione)
-        cv2.waitKey(1)
+    def destroy_node(self):
+        # Liberar la cámara al cerrar el nodo
+        self.cap.release()
+        super().destroy_node()
 
 def main(args=None):
     rclpy.init(args=args)
-    node = ObjectDetectorNode()
-    
+    node = CameraPublisher()
+
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
     finally:
-        # Cerrar todo al terminar
         node.destroy_node()
         rclpy.shutdown()
-        cv2.destroyAllWindows()
 
 if __name__ == '__main__':
     main()
