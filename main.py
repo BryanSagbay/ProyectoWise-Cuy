@@ -2,9 +2,10 @@ import cv2
 import numpy as np
 import os
 import time
+from ultralytics import YOLO
 
 def main():
-    
+
     capture_folder = "capturas"
     os.makedirs(capture_folder, exist_ok=True)
 
@@ -13,26 +14,17 @@ def main():
         print("No se puede acceder a la cámara")
         return
 
-    model_cfg = 'yolov3.cfg' 
-    model_weights = 'yolov3.weights'  
-    labels_path = 'coco.names'  
+    model_path = os.path.join('yolo_cuy_model.pt')
+    model = YOLO(model_path)
 
-    with open(labels_path, 'r') as f:
-        classes = f.read().strip().split('\n')
-
-    net = cv2.dnn.readNetFromDarknet(model_cfg, model_weights)
-    net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
-    net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
-
-    layer_names = net.getLayerNames()
-    output_layers = [layer_names[i - 1] for i in net.getUnconnectedOutLayers()]
+    classes = ['cuy']  
 
     cv2.namedWindow('Cámara en tiempo real', cv2.WINDOW_NORMAL)
     print("Presiona 'q' para salir")
 
     frame_counter = 0
     last_capture_time = 0
-    capture_interval = 3
+    capture_interval = 3 
 
     while True:
         ret, frame = cap.read()
@@ -40,56 +32,27 @@ def main():
             print("No se pudo capturar el frame")
             break
 
-        height, width, _ = frame.shape
+        results = model.predict(frame, conf=0.25)
 
-        blob = cv2.dnn.blobFromImage(frame, 1/255.0, (416, 416), swapRB=True, crop=False)
-        net.setInput(blob)
-        outputs = net.forward(output_layers)
+        detection_made = False
+        for result in results:
+        
+            boxes = result.boxes.xyxy 
+            confidences = result.boxes.conf 
+            class_ids = result.boxes.cls 
 
-        boxes = []
-        confidences = []
-        class_ids = []
-
-        for output in outputs:
-            for detection in output:
-                scores = detection[5:]
-                class_id = np.argmax(scores)
-                confidence = scores[class_id]
+            for i, box in enumerate(boxes):
+                x1, y1, x2, y2 = box
+                confidence = confidences[i]
+                class_id = int(class_ids[i])
 
                 if confidence > 0.5: 
-                    center_x = int(detection[0] * width)
-                    center_y = int(detection[1] * height)
-                    w = int(detection[2] * width)
-                    h = int(detection[3] * height)
+                    label = f"{classes[class_id]}: {confidence:.2f}"
+                    color = (0, 255, 0)  
 
-                    x = int(center_x - w / 2)
-                    y = int(center_y - h / 2)
-
-                    boxes.append([x, y, w, h])
-                    confidences.append(float(confidence))
-                    class_ids.append(class_id)
-
-        indices = cv2.dnn.NMSBoxes(boxes, confidences, 0.5, 0.4)
-
-        detection_made = False 
-
-        if len(indices) > 0: 
-            if isinstance(indices, np.ndarray):  
-                for i in indices.flatten():
-                    x, y, w, h = boxes[i]
-                    label = f"{classes[class_ids[i]]}: {confidences[i]:.2f}"
-                    color = (0, 255, 0)  # Verde
-                    cv2.rectangle(frame, (x, y), (x + w, y + h), color, 2)
-                    cv2.putText(frame, label, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                    cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
+                    cv2.putText(frame, label, (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
                     detection_made = True
-            elif isinstance(indices, (int, np.integer)):
-                i = indices
-                x, y, w, h = boxes[i]
-                label = f"{classes[class_ids[i]]}: {confidences[i]:.2f}"
-                color = (0, 255, 0)  # Verde
-                cv2.rectangle(frame, (x, y), (x + w, y + h), color, 2)
-                cv2.putText(frame, label, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
-                detection_made = True
 
         current_time = time.time()
         if detection_made and (current_time - last_capture_time >= capture_interval):
