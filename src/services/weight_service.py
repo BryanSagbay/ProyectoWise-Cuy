@@ -3,6 +3,8 @@ import time
 from hx711 import HX711
 import RPi.GPIO as GPIO
 
+GPIO.setmode(GPIO.BOARD)
+
 class WeightService:
     def __init__(self, capture_event, threshold=50):
         self.capture_event = capture_event
