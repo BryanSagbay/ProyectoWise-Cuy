@@ -1,25 +1,50 @@
 import sqlite3
 import os
 
-def connect_to_database(db_name):
+class SQLiteService:
+    def __init__(self, db_name="cuywise.sqlite"):
 
-    db_folder = os.path.join(os.path.dirname(__file__), "../database")
-    db_path = os.path.join(db_folder, db_name)
+        self.db_folder = os.path.join(os.path.dirname(__file__), "../database")
+        self.db_path = os.path.join(self.db_folder, db_name)
 
-    try:
-        os.makedirs(db_folder, exist_ok=True)
+        os.makedirs(self.db_folder, exist_ok=True)
 
-        connection = sqlite3.connect(db_path)
-        print(f"Conexión exitosa a la base de datos en '{db_path}'")
-        return connection
-    except sqlite3.Error as e:
-        print(f"Error al conectar con la base de datos: {e}")
-        return None
-    finally:
-        if 'connection' in locals() and connection:
-            connection.close()
+        self.connection = self.connect_to_database()
 
-database_name = "cuywise.sqlite"
+    def connect_to_database(self):
+        try:
+            connection = sqlite3.connect(self.db_path)
+            print(f"Conexión exitosa a la base de datos: {self.db_path}")
+            return connection
+        except sqlite3.Error as e:
+            print(f"Error al conectar a la base de datos: {e}")
+            return None
+
+    def create_table(self):
+
+        if self.connection:
+            try:
+                cursor = self.connection.cursor()
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS data_cuy (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        image_path TEXT NOT NULL,
+                        weight REAL NOT NULL,
+                        timestamp TEXT NOT NULL
+                    )
+                """)
+                self.connection.commit()
+                print("Tabla 'data_cuy' creada o ya existente.")
+            except sqlite3.Error as e:
+                print(f"Error al crear la tabla: {e}")
+
+    def close_connection(self):
+        if self.connection:
+            self.connection.close()
+            print("Conexión a la base de datos cerrada.")
 
 if __name__ == "__main__":
-    connect_to_database(database_name)
+
+    sqlite_service = SQLiteService()
+    sqlite_service.create_table()
+    sqlite_service.close_connection()
